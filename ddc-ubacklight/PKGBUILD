@@ -1,0 +1,29 @@
+pkgname=ddc-ubacklight
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='DDC/CI monitor brightness as /sys/class/backlight devices (daemon and DKMS module)'
+arch=('x86_64')
+license=('MIT')
+# ddca_get_display_info2() exists since libddcutil 2.2.1.
+depends=('ddcutil>=2.2.1' 'dkms' 'glibc')
+source=("${pkgname}-${pkgver}::git+https://github.com/andrewerf/ddc-ubacklight.git#tag=v${pkgver}")
+sha256sums=('SKIP')
+
+build() {
+  make -C "$pkgname-$pkgver/daemon"
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  make -C daemon DESTDIR="$pkgdir" PREFIX=/usr install
+
+  # Module source; the dkms pacman hook builds it for every installed kernel.
+  local src="$pkgdir/usr/src/ubacklight-$pkgver"
+  install -Dm644 -t "$src" kernel/{Makefile,dkms.conf,ubacklight.c,ubacklight.h}
+  sed -i "s/^PACKAGE_VERSION=.*/PACKAGE_VERSION=\"$pkgver\"/" "$src/dkms.conf"
+
+  # The module has a dynamic minor number, so nothing loads it on demand.
+  echo ubacklight | install -Dm644 /dev/stdin "$pkgdir/usr/lib/modules-load.d/$pkgname.conf"
+
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

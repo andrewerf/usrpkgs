@@ -1,0 +1,6 @@
+type = process
+command = /usr/bin/bt-mode-control-set-master hci0
+restart = true
+logfile = /var/log/bt-mode-control.log
+depends-on = dbus
+waits-for = bluetoothd

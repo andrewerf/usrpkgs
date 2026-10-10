@@ -1,0 +1,46 @@
+#!/bin/bash
+# bt-mode-control-set-master: keep an HCI adapter in central (master) link mode with role switch disabled.
+# Re-applies after every event that can reset the settings: adapter power-on,
+# bluetoothd restart, adapter re-registration (replug, resume), system resume.
+
+DEV=${1:-hci0}
+POLICY=hold,sniff,park
+TICK=10   # seconds; fallback poll, covers events that produce no D-Bus signal
+
+enforce() {
+    local info lm lp
+    info=$(hciconfig "$DEV" 2>/dev/null) || return 0      # adapter absent
+    lm=$(hciconfig "$DEV" lm 2>/dev/null)
+    case $lm in
+        *MASTER*|*CENTRAL*) ;;                            # name depends on BlueZ version
+        *) hciconfig "$DEV" lm master && echo "$DEV: link mode set to master" ;;
+    esac
+    case $info in *"UP RUNNING"*) ;; *) return 0 ;; esac  # lp is an HCI command: fails on a DOWN adapter
+    # (this reads the kernel's cached policy, which the kernel refreshes at every power-on)
+    lp=$(hciconfig "$DEV" lp 2>/dev/null)
+    case $lp in
+        *RSWITCH*) hciconfig "$DEV" lp "$POLICY" && echo "$DEV: link policy set to $POLICY" ;;
+    esac
+}
+
+trap 'kill "$MON" 2>/dev/null' EXIT
+trap 'exit 0' TERM INT
+
+while :; do
+    enforce
+    exec 3< <(exec dbus-monitor --system --profile \
+        "type='signal',path='/org/bluez/$DEV',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='org.bluez.Adapter1'" \
+        "type='signal',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesAdded',arg0path='/org/bluez/$DEV'" \
+        "type='signal',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'" \
+        2>/dev/null)
+    MON=$!
+    while :; do
+        read -r -t "$TICK" -u 3 _
+        rc=$?
+        # rc 0: a signal arrived; rc > 128: timeout; otherwise EOF (bus gone)
+        if [ "$rc" -ne 0 ] && [ "$rc" -le 128 ]; then break; fi
+        enforce
+    done
+    exec 3<&-
+    sleep 2       # no system bus: degrade to polling until it returns
+done

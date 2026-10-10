@@ -1,0 +1,22 @@
+# Maintainer: your name <your@email>
+
+pkgname=bt-mode-control
+pkgver=1.0
+pkgrel=1
+pkgdesc="dinit service that keeps a Bluetooth adapter in master role with role switch disabled"
+arch=('any')
+license=('0BSD')
+# bluez-deprecated-tools: hciconfig; dbus: dbus-monitor;
+# bluez-dinit: the bluetoothd service (pulls in dbus-dinit and dinit)
+depends=('bash' 'bluez-deprecated-tools' 'bluez-dinit' 'dbus')
+optdepends=('elogind: immediate re-check on resume (otherwise within 10 s)')
+backup=('etc/dinit.d/bt-mode-control')
+source=('bt-mode-control'
+        'bt-mode-control-set-master')
+sha256sums=('102bbe064ac68574136d169141cd3a97b78f551f1b3e0d8c7136f763580615fe'
+            'fe7f462de22a84649235cfa1c065fb71bec92f8d5bbe0f721b6923e47480cf54')
+
+package() {
+    install -Dm755 bt-mode-control-set-master "$pkgdir/usr/bin/bt-mode-control-set-master"
+    install -Dm644 bt-mode-control "$pkgdir/etc/dinit.d/bt-mode-control"
+}

@@ -1,0 +1,6 @@
+type            = process
+command         = /usr/bin/ddc-backlightd
+smooth-recovery = true
+depends-on      = local.target
+before          = login.target
+logfile         = /var/log/dinit/ddc-backlightd.log

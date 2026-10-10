@@ -1,0 +1,15 @@
+pkgname=ddc-ubacklight-dinit
+pkgver=20261008
+pkgrel=1
+pkgdesc='dinit service script for ddc-ubacklight'
+arch=('any')
+license=('GPL-2.0-only')
+depends=('ddc-ubacklight' 'dinit')
+provides=('init-ddc-ubacklight')
+conflicts=('init-ddc-ubacklight')
+source=('ddc-backlightd')
+sha256sums=('bc27b62fa9a3c89a4b19964f56822030ab8abc6fdb4e712d03ac002d1e18befe')
+
+package() {
+  install -Dm644 ddc-backlightd "$pkgdir/etc/dinit.d/ddc-backlightd"
+}
