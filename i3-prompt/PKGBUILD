@@ -1,0 +1,30 @@
+# Maintainer: Andrei Aralov <andrew-aralov@yandex.ru>
+pkgname=i3-prompt
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="i3 Command prompt with usage-ranked completion for dmenu with the dynamicoptions patch"
+arch=('any')
+url="https://tools.suckless.org/dmenu/patches/dynamicoptions/"
+license=('BSD-3-Clause')
+depends=('python' 'i3-wm' 'sh')
+optdepends=('dmenu: for prompt; must be built with the dynamicoptions patch')
+# commands.spec is parser-specs/commands.spec of i3 4.25.
+source=('i3-prompt' 'i3-options' 'i3_options.py' 'commands.spec')
+sha256sums=('898f6905f7853346f60892b529266069a644b86d672d60e7bc39ba1364d02027'
+            'd18cabdf29ed31b5c0674b64f717611a9a6f5d21502dad586721138e98609780'
+            '53b3e688b4f3b8792990b0037ead6a0fdfd92b2d16d338610279c02d158ef7b2'
+            'a6c077b5bf9154a3045480090aa779a09c089f0925a310355fb431854bcf6c8b'
+)
+
+package() {
+    local lib="$pkgdir/usr/lib/$pkgname"
+    install -Dm755 -t "$lib" i3-prompt i3-options
+    install -Dm644 -t "$lib" i3_options.py commands.spec
+    # /usr/lib is not writable at run time, so the compiled module is shipped;
+    # without it every keystroke would recompile the source.
+    python -m compileall -q -d "/usr/lib/$pkgname" "$lib/i3_options.py"
+    # Both scripts resolve symlinks to find their neighbours.
+    install -d "$pkgdir/usr/bin"
+    ln -s "/usr/lib/$pkgname/i3-prompt" "$pkgdir/usr/bin/i3-prompt"
+    ln -s "/usr/lib/$pkgname/i3-options" "$pkgdir/usr/bin/i3-options"
+}

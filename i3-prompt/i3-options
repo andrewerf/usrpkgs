@@ -1,0 +1,11 @@
+#!/usr/bin/env -S python3 -IS
+# i3-options: launcher for i3_options.py, which has the documentation.
+# -I and -S skip the user's Python environment and the site module, which this
+# program does not use; that saves a few milliseconds on every keystroke.
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import i3_options  # noqa: E402 (the path has to be set first)
+
+sys.exit(i3_options.main(sys.argv[1:]))

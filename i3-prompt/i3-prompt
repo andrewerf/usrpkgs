@@ -1,0 +1,26 @@
+#!/bin/sh
+# i3-prompt: an i3 command prompt in dmenu built with the dynamicoptions patch
+# (https://tools.suckless.org/dmenu/patches/dynamicoptions/).
+# The options come from i3-options, next to this script. Arguments are passed
+# on to dmenu; $DMENU names the patched binary if it is not the `dmenu` in PATH.
+#   bindsym $mod+c exec --no-startup-id /path/to/i3-prompt
+here=$(dirname "$(readlink -f "$0")")
+menu=${DMENU:-dmenu}
+# dmenu hands the -dy string to sh, hence the inner quotes (a path containing
+# a single quote would still break).
+cmd=$("$menu" -l 12 -p i3-msg "$@" -dy "'$here/i3-options'") || exit 0
+[ -n "$cmd" ] || exit 0
+# Return picks the first option, and `ex` already matches exit: ending the
+# session takes a second Return.
+if "$here/i3-options" --confirm "$cmd"; then
+    answer=$(printf '<run>\n<cancel>\n' | "$menu" -p "run: $cmd") || exit 0
+    [ "$answer" = "<run>" ] || exit 0
+fi
+# i3-msg prints i3's errors on stderr. Nothing there means success; that
+# includes `exit`, where i3 closes the connection without a reply.
+err=$(i3-msg "$cmd" 2>&1 >/dev/null)
+if [ -z "$err" ]; then
+    "$here/i3-options" --record "$cmd"
+else
+    i3-nagbar -t error -m "i3-prompt: $cmd: $err" >/dev/null 2>&1 &
+fi
