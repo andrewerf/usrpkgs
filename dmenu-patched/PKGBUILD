@@ -1,0 +1,50 @@
+# Maintainer: Levente Polyak <anthraxx[at]archlinux[dot]org>
+# Maintainer: T.J. Townsend <blakkheim@archlinux.org>
+# Contributor: Sergej Pupykin <pupykin.s+arch@gmail.com>
+# Contributor: Bartłomiej Piotrowski <bpiotrowski@archlinux.org>
+# Contributor: Thorsten Töpper <atsutane-tu@freethoughts.de>
+# Contributor: Thayer Williams <thayer@archlinux.org>
+# Contributor: Jeff 'codemac' Mickey <jeff@archlinux.org>
+
+pkgname=dmenu
+pkgver=5.4
+pkgrel=1
+pkgdesc='Generic menu for X (with some patches)'
+url='https://tools.suckless.org/dmenu/'
+arch=('x86_64')
+license=('MIT')
+makedepends=('git')
+depends=('sh' 'glibc' 'coreutils' 'libx11' 'libxinerama' 'libxft' 'freetype2' 'fontconfig' 'libfontconfig.so')
+source=(
+  "git+https://git.suckless.org/dmenu#tag=${pkgver}"
+  "dmenu-dynamicoptions-5.4.diff"
+)
+sha512sums=(
+  'd092a56214151833e3f98a86e2b36035ea8b548412d55bedeaf71f8442ed107b1b90edb74481d6a75512d3796d51248941f261190c90ea7c5e132a1c016817dd'
+  '7d57900af7b675b2ca5abd7b4c2d4bc105e5350c77acbfb06747ba650d99f94bbb701eb561e4941f188fa21ffd3800b6bf6f8fef422d2fa5646bc756eb7d2e55'
+)
+
+prepare() {
+  cd ${pkgname}
+  git apply -3 ../dmenu-dynamicoptions-5.4.diff
+  echo "CPPFLAGS+=${CPPFLAGS}" >> config.mk
+  echo "CFLAGS+=${CFLAGS}" >> config.mk
+  echo "LDFLAGS+=${LDFLAGS}" >> config.mk
+}
+
+build() {
+  cd ${pkgname}
+  make \
+	  X11INC=/usr/include/X11 \
+	  X11LIB=/usr/lib/X11 \
+	  FREETYPEINC=/usr/include/freetype2
+}
+
+package() {
+  cd ${pkgname}
+  make PREFIX=/usr DESTDIR="${pkgdir}" install
+  install -Dm 644 LICENSE -t "${pkgdir}/usr/share/licenses/${pkgname}"
+}
+
+# vim: ts=2 sw=2 et:
+

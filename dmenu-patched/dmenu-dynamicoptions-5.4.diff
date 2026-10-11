@@ -1,0 +1,174 @@
+diff --git a/config.def.h b/config.def.h
+index 1edb647..035b877 100644
+--- a/config.def.h
++++ b/config.def.h
+@@ -7,6 +7,7 @@ static const char *fonts[] = {
+ 	"monospace:size=10"
+ };
+ static const char *prompt      = NULL;      /* -p  option; prompt to the left of input field */
++static const char *dynamic     = NULL;      /* -dy option; dynamic command to run on input change */
+ static const char *colors[SchemeLast][2] = {
+ 	/*     fg         bg       */
+ 	[SchemeNorm] = { "#bbbbbb", "#222222" },
+diff --git a/dmenu.1 b/dmenu.1
+index 323f93c..1ae3fe3 100644
+--- a/dmenu.1
++++ b/dmenu.1
+@@ -22,6 +22,8 @@ dmenu \- dynamic menu
+ .IR color ]
+ .RB [ \-w
+ .IR windowid ]
++.RB [ \-dy
++.IR command ]
+ .P
+ .BR dmenu_run " ..."
+ .SH DESCRIPTION
+@@ -80,6 +82,9 @@ prints version information to stdout, then exits.
+ .TP
+ .BI \-w " windowid"
+ embed into windowid.
++.TP
++.BI \-dy " command"
++runs command whenever input changes to update menu items.
+ .SH USAGE
+ dmenu is completely controlled by the keyboard.  Items are selected using the
+ arrow keys, page up, page down, home, and end.
+diff --git a/dmenu.c b/dmenu.c
+index fd49549..6ee26f3 100644
+--- a/dmenu.c
++++ b/dmenu.c
+@@ -43,6 +43,7 @@ static struct item *items = NULL;
+ static struct item *matches, *matchend;
+ static struct item *prev, *curr, *next, *sel;
+ static int mon = -1, screen;
++static unsigned int max_lines = 0;
+ 
+ static Atom clip, utf8;
+ static Display *dpy;
+@@ -226,6 +227,47 @@ grabkeyboard(void)
+ 	die("cannot grab keyboard");
+ }
+ 
++static void readstdin(FILE* stream);
++
++static void
++refreshoptions()
++{
++	int dynlen = strlen(dynamic);
++	int cmdlen = dynlen + 4;
++	char *cmd;
++	char *c;
++	char *t = text;
++	while (*t)
++		cmdlen += *t++ == '\'' ? 4 : 1;
++	cmd = malloc(cmdlen);
++	if (cmd == NULL)
++		die("cannot malloc %u bytes:", cmdlen);
++	strcpy(cmd, dynamic);
++	t = text;
++	c = cmd + dynlen;
++	*(c++) = ' ';
++	*(c++) = '\'';
++	while (*t) {
++		// prefix ' with '\'
++		if (*t == '\'') {
++			*(c++) = '\'';
++			*(c++) = '\\';
++			*(c++) = '\'';
++		}
++		*(c++) = *(t++);
++	}
++	*(c++) = '\'';
++	*(c++) = 0;
++	FILE *stream = popen(cmd, "r");
++	if (!stream)
++		die("could not popen dynamic command (%s):", cmd);
++	readstdin(stream);
++	int r = pclose(stream);
++	if (r == -1)
++		die("could not pclose dynamic command");
++	free(cmd);
++}
++
+ static void
+ match(void)
+ {
+@@ -237,6 +279,16 @@ match(void)
+ 	size_t len, textsize;
+ 	struct item *item, *lprefix, *lsubstr, *prefixend, *substrend;
+ 
++	if (dynamic) {
++		refreshoptions();
++		matches = matchend = NULL;
++		for (item = items; item && item->text; item++)
++			appenditem(item, &matches, &matchend);
++		curr = sel = matches;
++		calcoffsets();
++		return;
++	}
++
+ 	strcpy(buf, text);
+ 	/* separate input text into tokens to be matched individually */
+ 	for (s = strtok(buf, " "); s; tokv[tokc - 1] = s, s = strtok(NULL, " "))
+@@ -546,14 +598,14 @@ paste(void)
+ }
+ 
+ static void
+-readstdin(void)
++readstdin(FILE* stream)
+ {
+ 	char *line = NULL;
+ 	size_t i, itemsiz = 0, linesiz = 0;
+ 	ssize_t len;
+ 
+ 	/* read each line from stdin and add it to the item list */
+-	for (i = 0; (len = getline(&line, &linesiz, stdin)) != -1; i++) {
++	for (i = 0; (len = getline(&line, &linesiz, stream)) != -1; i++) {
+ 		if (i + 1 >= itemsiz) {
+ 			itemsiz += 256;
+ 			if (!(items = realloc(items, itemsiz * sizeof(*items))))
+@@ -569,7 +621,7 @@ readstdin(void)
+ 	free(line);
+ 	if (items)
+ 		items[i].text = NULL;
+-	lines = MIN(lines, i);
++	lines = MIN(max_lines, i);
+ }
+ 
+ static void
+@@ -715,7 +767,8 @@ static void
+ usage(void)
+ {
+ 	die("usage: dmenu [-bfiv] [-l lines] [-p prompt] [-fn font] [-m monitor]\n"
+-	    "             [-nb color] [-nf color] [-sb color] [-sf color] [-w windowid]");
++	    "             [-nb color] [-nf color] [-sb color] [-sf color] [-w windowid]\n"
++	    "             [-dy command]\n", stderr);
+ }
+ 
+ int
+@@ -757,6 +810,8 @@ main(int argc, char *argv[])
+ 			colors[SchemeSel][ColFg] = argv[++i];
+ 		else if (!strcmp(argv[i], "-w"))   /* embedding window id */
+ 			embed = argv[++i];
++		else if (!strcmp(argv[i], "-dy"))  /* dynamic command to run */
++			dynamic = argv[++i] && *argv[i] ? argv[i] : NULL;
+ 		else
+ 			usage();
+ 
+@@ -781,11 +836,14 @@ main(int argc, char *argv[])
+ 		die("pledge");
+ #endif
+ 
++	max_lines = lines;
+ 	if (fast && !isatty(0)) {
+ 		grabkeyboard();
+-		readstdin();
++		if (!dynamic)
++			readstdin(stdin);
+ 	} else {
+-		readstdin();
++		if (!dynamic)
++			readstdin(stdin);
+ 		grabkeyboard();
+ 	}
+ 	setup();
